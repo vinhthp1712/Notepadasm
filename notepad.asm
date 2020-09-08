@@ -1,4 +1,4 @@
-;; Define the externs for the functions that we'll use in this program.
+
 extern GetModuleHandleA
 extern GetCommandLineA
 extern ExitProcess
@@ -14,6 +14,31 @@ extern TranslateMessage
 extern DispatchMessageA
 extern PostQuitMessage
 extern DefWindowProcA
+extern GetClientRect
+extern SetWindowPos
+extern GetStockObject
+extern SendMessageA
+extern SetMenu
+extern AppendMenuA
+extern CreateMenu
+extern GetDlgItem
+extern SendMessageA
+extern GetOpenFileNameA
+extern CreateFileA
+extern GetFileSize
+extern GlobalAlloc
+extern GlobalFree
+extern ReadFile
+extern SetWindowTextA
+extern CloseHandle
+extern GetOpenFileNameA
+extern RtlZeroMemory
+extern SetDlgItemTextA
+extern CommDlgExtendedError
+extern GetWindowTextLengthA
+extern GetWindowTextA 
+extern WriteFile
+extern GetSaveFileNameA
 
 ;; Import the Win32 API functions.
 import GetModuleHandleA kernel32.dll
@@ -31,25 +56,42 @@ import TranslateMessage user32.dll
 import DispatchMessageA user32.dll
 import PostQuitMessage user32.dll
 import DefWindowProcA user32.dll
+import GetClientRect user32.dll
+import SetWindowPos user32.dll
+import GetStockObject gdi32.dll
+import SendMessageA user32.dll
+import AppendMenuA user32.dll
+import SetMenu user32.dll
+import CreateMenu user32.dll
+import GetDlgItem user32.dll
+import SendMessageA user32.dll
+import GetOpenFileNameA comdlg32.dll
+import CreateFileA kernel32.dll
+import GetFileSize kernel32.dll
+import GlobalAlloc kernel32.dll
+import GlobalFree kernel32.dll
+import ReadFile kernel32.dll
+import SetWindowTextA user32.dll
+import CloseHandle kernel32.dll
+import GetOpenFileNameA comdlg32.dll
+import RtlZeroMemory kernel32.dll
+import SetDlgItemTextA user32.dll
+import CommDlgExtendedError comdlg32.dll
+import GetWindowTextLengthA user32.dll
+import GetWindowTextA  user32.dll
+import WriteFile kernel32.dll
+import GetSaveFileNameA comdlg32.dll
 
-;; Tell NASM that we're about to type things for the code section.
+
 section .text use32
-;; We specify that here is the place where the program should start
-;; executing.
+
 ..start:
 
-;; We pass 0 as a parameter.
 push dword 0
-;; Then we call the GetModuleHandle() function.
 call [GetModuleHandleA]
-;; And we store the result (which is in EAX) in the hInstance global variable.
 mov dword [hInstance], eax
-
-;; Then we call the function to get the command line for our program.
 call [GetCommandLineA]
-;; And we store the result in the CommandLine global variable.
 mov dword [CommandLine], eax
-
 ;; Now we call our WindowMain() function.
 ;; The parameters to pass are:  hInstance, 0, CommandLine, SW_SHOWDEFAULT
 ;; SW_<something> is a Windows constant for how to show a window.
@@ -75,99 +117,78 @@ call [ExitProcess]
 ;; from our window when some event happens, and an HWND, which is just a
 ;; double-word that's used for storing the handle to our window.
 WindowMain:
-    ;; WNDCLASSEX is 48 bytes in size. Let's use [ebp-48] for the start of our
-    ;; window class structure. MSG is 28 bytes in size; let's use [ebp-48-24]
-    ;; = [ebp-72] for that. Then there's HWND, which is 4 bytes in size.
-    ;; We'll use [ebp-76] to store that value.
-    ;; So we'll have to reserve 76 bytes on the stack.
-    enter 76, 0
 
-    ;; We need to fill out the WNDCLASSEX structure, now.
-    lea ebx, [ebp-48]           ;; We load EBX with the address of our WNDCLASSEX structure.
+    ;;WNDClASSEX [ebp-48]
+    ;;MSG[ebp-48-24]
+    ;;HWND [ebp-48-24-4]
+    ;;enter 76, 0
+    push ebp
+    mov ebp,esp
+    sub esp,76
+    ;;WNDCLASSEX
+    lea ebx, [ebp-48]        
+    mov dword [ebx+00], 48 ;StructSize      .
+    mov dword [ebx+04], 3     ;;Window Style
+    mov dword [ebx+08], WindowProcedure      
+    mov dword [ebx+12], 0       ;cbClsExtra
+    mov dword [ebx+16], 0       ;cbWndExtra
 
-    ;; The structure of WNDCLASSEX can be found at this page:
-    ;; http://msdn.microsoft.com/en-us/library/ms633577(v=vs.85).aspx
+    mov eax, dword [ebp+8]      ;;1st parameter in winmain hInstance
+    mov dword [ebx+20], eax     ;hInstance
 
-    mov dword [ebx+00], 48      ;; Offset 00 is the size of the structure.
-    mov dword [ebx+04], 3       ;; Offset 04 is the style for the window. 3 is equal to CS_HREDRAW | CS_VREDRAW
-    mov dword [ebx+08], WindowProcedure        ;; Offset 08 is the address of our window procedure.
-    mov dword [ebx+12], 0       ;; I'm not sure what offset 12 and offset 16 are for.
-    mov dword [ebx+16], 0       ;; But I do know that they're supposed to be NULL, at least for now.
+    mov dword [ebx+32], 5 + 1 ;;Background burhs Color_Window+1
+    mov dword [ebx+36], 0  ;;Menu Name
+    mov dword [ebx+40], ClassName        
 
-    mov eax, dword [ebp+8]      ;; We load the hInstance value.
-    mov dword [ebx+20], eax     ;; Offset 20 is the hInstance value.
-
-    mov dword [ebx+32], 5 + 1   ;; Offset 32 is the handle to the background brush. We set that to COLOR_WINDOW + 1.
-    mov dword [ebx+36], 0       ;; Offset 36 is the menu name, what we set to NULL, because we don't have a menu.
-    mov dword [ebx+40], ClassName              ;; Offset 40 is the class name for our window class.
-    ;; Note that when we're trying to pass a string, we pass the memory address of the string, and the
-    ;; function to which we pass that address takes care of the rest.
-
-    ;; LoadIcon(0, IDI_APPLICATION) where IDI_APPLICATION is equal to 32512.
-    push dword 32512
+    push dword 32512 ;;IDI_APPLICATION
     push dword 0
     call [LoadIconA]
 
-    ;; All Win32 API functions preserve the EBP, EBX, ESI, and EDI registers, so it's
-    ;; okay if we use EBX to store the address of the WNDCLASSEX structure, for now.
+    mov dword [ebx+24], eax    ;;handle icon window
+    mov dword [ebx+44], eax    ;;handle small icon
 
-    mov dword [ebx+24], eax     ;; Offset 24 is the handle to the icon for our window.
-    mov dword [ebx+44], eax     ;; Offset 44 is the handle to the small icon for our window.
-
-    ;; LoadCursor(0, IDC_ARROW) where IDC_ARROW is equal to 32512.
-    push dword 32512
+    push dword 32512 ;;IDC_ARROW 
     push dword 0
     call [LoadCursorA]
 
-    mov dword [ebx+28], eax     ;; Offset 28 is the handle to the cursor for our window.
+    mov dword [ebx+28], eax    ;;handle cursor
 
-    ;; Now we register our window class with Windows, so that we can use the class name
-    ;; for our window, when we make that.
-    ;; Since EBX already has the address of our WNDCLASSEX structure, we can just pussh
-    ;; EBX, so we don't have to reload the address of that structure.
     push ebx
     call [RegisterClassExA]
 
     ;; CreateWindowEx(0, ClassName, window title, WS_OVERLAPPEDWINDOW, x, y, width, height, handle to parent window, handle to menu, hInstance, NULL);
-    push dword 0
-    push dword [ebp+8]
-    push dword 0
-    push dword 0
-    push dword 400              ;; 400 pixels high.
-    push dword 500              ;; 500 pixels wide.
-    push dword 0x80000000       ;; CW_USEDEFAULT
-    push dword 0x80000000       ;; CW_USEDEFAULT
-    push dword 0x00 | 0xC00000 | 0x80000 | 0x40000 | 0x20000 | 0x10000    ;; WS_OVERLAPPEDWINDOW
+    push dword 0 ;;lParam
+    push dword [ebp+8] ;;hInstance
+    push dword 0 ;;hMenu
+    push dword 0 ;;hwndParent
+    push dword 700              ;; 400 pixels high.
+    push dword 1000             ;; 500 pixels wide.
+    push dword 0x80000000       ;; CW_USEDEFAULT Y
+    push dword 0x80000000       ;; CW_USEDEFAULT X
+    push dword 0x00 | 0xC00000 | 0x80000 | 0x40000 | 0x20000 | 0x10000    ;; WS_OVERLAPPEDWINDOW //dwStyle
                                 ;; WS_OVERLAPPEDWINDOW = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
     push dword ApplicationName
     push dword ClassName
-    push dword 0
+    push dword 0 ;;dwExStyle
     call [CreateWindowExA]
-    ;; Store the result (which should be a handle to our window) in [ebp-76].
+
     mov dword [ebp-76], eax
 
-    ;; Check if EAX is zero. If so, jump to the error-handling routine.
-    sub eax, 0                  ;; The only difference between SUB and CMP is that CMP doesn't store the result in the first operand.
-                                ;; Here we're subtracting 0 from EAX, which won't change EAX, so it doesn't matter if we use SUB.
-    jz .new_window_failed
 
-    ;; Now we need to show the window and update the window.
+    sub eax, 0                  
+    jz .new_window_failed
 
     ;; ShowWindow([ebp-76], [ebp+20])
     push dword [ebp+20]
     push dword [ebp-76]
     call [ShowWindow]
 
-    ;; UpdateWindow([ebp-76])
-    push dword [ebp-76]
-    call [UpdateWindow]
-
     .MessageLoop:
         ;; GetMessage(the MSG structure, 0, 0, 0)
-        push dword 0
-        push dword 0
-        push dword 0
-            lea ebx, [ebp-72]
+        push dword 0 ;wMsgFilterMax
+        push dword 0 ;wMsgFilterMin
+        push dword 0;hwnd
+        lea ebx, [ebp-72] ;MSG struct
         push ebx
         call [GetMessageA]
         ;; If GetMessage() returns 0, it's time to exit.
@@ -188,11 +209,9 @@ WindowMain:
         jmp .MessageLoop
     .MessageLoopExit:
 
-    ;; We'll need to jump over the error-handling routing, so we can continue.
     jmp .finish
 
     .new_window_failed:
-        ;; Display a message box with the error message.
         push dword 0
         push dword 0
         push dword err_msg
@@ -201,23 +220,21 @@ WindowMain:
 
         ;; Exit, returning 1.
         mov eax, 1
-        leave
+        mov esp,ebp
+	pop ebp
         ret 16
     .finish:
 
-    ;; We return the MSG.wParam value.
+    ;; return the MSG.wParam value.
     lea ebx, [ebp-72]
     mov eax, dword [ebx+08]
 
     ;; It's time to leave.
-    leave
-;; And, since WindowMain() has 4 arguments, we free 4 * 4 = 16 bytes from
-;; the stack, after we return.
+    mov esp,ebp
+    pop ebp
+
 ret 16
 
-;; We also need a procedure to handle the events that our window sends us.
-;; We call that procedure WindowProcedure().
-;; It also has to take 4 arguments, which are as follows:
 ;;    hWnd             The handle to the window that sent us that event.
 ;;                     This would be the handle to the window that uses
 ;;                     our window class.
@@ -226,19 +243,13 @@ ret 16
 ;;    wParam           This is a parameter that goes along with the
 ;;                     event message.
 ;;    lParam           This is an additional parameter for the message.
-;; If we process the message, we have to return 0.
-;; Otherwise, we have to return whatever the DefWindowProc() function
-;; returns. DefWindowProc() is kind of like the "default window procedure"
-;; function. It takes the default action, based on the message.
-;; For now, we only care about the WM_DESTROY message, which tells us
-;; that the window has been closed. If we don't take care of the
-;; WM_DESTROY message, who knows what will happen.
-;; Later on, of course, we can expand our window to process other
-;; messages too.
-WindowProcedure:
-    ;; We don't really need any local variables, for now, besides the function arguments.
-    enter 0, 0
 
+WindowProcedure:
+    ;;Rect [ebp-16]
+    ;;enter 16, 0
+    push ebp
+    mov ebp,esp
+    sub esp,16
     ;; We need to retrieve the uMsg value.
     mov eax, dword [ebp+12]           ;; We get the value of the second argument.
 
@@ -255,33 +266,372 @@ WindowProcedure:
     ;; we can jump to another location in the code that would take care of the
     ;; message.
     ;; We'll just jump to the window_default label.
+    
+    cmp eax,1 ;;Compare MSG with WM_CREATE
+    jz .window_create
+    cmp eax,5 ;;Compare MSG with WM_SIZE
+    jz .window_size
+    cmp eax, 273 ;;Compare MSG with WM_COMMAND
+    jz .window_command
     jmp .window_default
 
-    ;; We need to define the .window_destroy label, now.
     .window_destroy:
-        ;; If uMsg is equal to WM_DESTROY (2), then the processor will execute this
-        ;; code next.
 
-        ;; We pass 0 as an argument to the PostQuitMessage() function, to tell it
-        ;; to pass 0 as the value of wParam for the next message. At that point,
-        ;; GetMessage() will return 0, and the message loop will terminate.
         push dword 0
-        ;; Now we call the PostQuitMessage() function.
         call [PostQuitMessage]
-
-        ;; When we're done doing what we need to upon the WM_DESTROY condition,
-        ;; we need to jump over to the end of this area, or else we'd end up
-        ;; in the .window_default code, which won't be very good.
         jmp .window_finish
-    ;; And we define the .window_default label.
-    .window_default:
-        ;; Right now we don't care about what uMsg is; we just use the default
-        ;; window procedure.
+	
+    .window_create:
+        ;; CreateWindowEx(0, ClassName, window title, WS_OVERLAPPEDWINDOW, x, y, width, height, handle to parent window, handle to menu, hInstance, NULL);
+        push dword 0 ;;lParam
+        push dword 0 ;;hInstance
+        push dword 101 ;;IDC_MAIN_EDIT edit control ID
+        push dword [ebp+08] ;;hwnd Parent
+        push dword 400 
+        push dword 120
+        push dword 100
+        push dword 100
+        push dword 0x40000000 | 0x10000000 | 0x200000 | 0x00000000 | 0x00000004 | 0x00000040 ;;WS_OVERLAPPEDWINDOW
+        push dword 0
+        push dword ClassNameEdit 
+        push dword 0
+        call [CreateWindowExA]
+        mov [hEdit],eax
+	
+	;;GetClientRect
+	;;RECt(left,top,right,bottom)
+	xor ebx,ebx
+	lea ebx,[ebp-16]
+	mov dword [ebx+00], 0
+	mov dword [ebx+04], 0
+	mov dword [ebx+08], 0
+	mov dword [ebx+12], 0
+	
+	push ebx
+	push dword [ebp+08]
+	call [GetClientRect]
+	
+	;;SetWindowPos(hwnd,hwndInsertAfter,X,Y,cx,cy,uFlags)
+	push dword 0x0004 ;;SWP_NOZORDER
+	push dword [ebx+12] ;;rect bottom
+	push dword [ebx+08] ;;rect right
+	push dword 0
+	push dword 0
+	push dword 0
+	push dword [hEdit]
+	call [SetWindowPos]
+	
+	;;Add menus
+	
+	
+	call [CreateMenu]
+	mov dword [hMenu],eax
+	
+	call [CreateMenu]
+	mov dword [hFileMenu],eax
+	
+	;;AppendMenuA(hMenu,uFlags,uIDNewItem,lpNewItem)
+	push dword MenuNewFile
+	push dword 1 ;;menu new file ID
+	push dword 0x00000000 ;;MF_STRING
+	push dword [hFileMenu]
+	call [AppendMenuA]
+	
+		
+	push dword MenuOpenFile
+	push dword 2 ;; menu open file ID
+	push dword 0x00000000 ;;MF_STRING
+	push dword [hFileMenu]
+	call [AppendMenuA]
+		
+	push dword MenuSaveFile
+	push dword 3 ;;menu save file ID
+	push dword 0x00000000 ;;MF_STRING
+	push dword [hFileMenu]
+	call [AppendMenuA]
+	
+	push dword MenuExitFile
+	push dword 4 ;;menu exit file ID
+	push dword 0x00000000 ;;MF_STRING
+	push dword [hFileMenu]
+	call [AppendMenuA]
+		
+	push dword MenuFile
+	push dword [hFileMenu]
+	push dword 0x00000010 ;;MF_POPUP
+	push dword [hMenu]
+	call [AppendMenuA]
+	
+	push dword [hMenu]
+	push dword [ebp+08] ;;hwnd
+	call [SetMenu]
+	
+	jmp .window_finish
+    .window_size:
+	;;RECt(left,top,right,bottom)
+	xor ebx,ebx
+	lea ebx,[ebp-16]
+	
+	mov dword [ebx+00], 0
+	mov dword [ebx+04], 0
+	mov dword [ebx+08], 0
+	mov dword [ebx+12], 0
+	
+	push ebx
+	push dword [ebp+08]
+	call [GetClientRect]
+	
+	;;getdlgitem(hDlg,nIDDlgItem)
+	;;retrieves handle hEdit
+	push dword 101 ;;hEdit ID //IDC_MAIN_EDIT
+	push dword [ebp+08]
+	call [GetDlgItem]
+	mov dword [hEdit],eax
+	
+	;;Set edit control
+	;;SetWindowPos(hwnd,hwndInsertAfter,X,Y,cx,cy,uFlags)
+	push dword 0x0004 ;;SWP_NOZORDER Retains the current Z order (ignores the hWndInsertAfter parameter).
+	push dword [ebx+12] ;;rect bottom
+	push dword [ebx+08] ;;rect right
+	push dword 0
+	push dword 0
+	push dword 0
+	push dword [hEdit]
+	call [SetWindowPos]
+	jmp .window_finish
+	
+    .window_command:
+	;;wParam
+	mov eax, dword [ebp+16]
+	;;Compare with MenuID
+	cmp eax,1 ;;new file ID
+	jz .new_file
+	cmp eax,2 ;; open file ID
+	jz .window_open_file 
+	cmp eax,3 ;; save file ID
+	jz .window_save_file 
+	jmp .window_finish
+    .new_file:	
+	;;Set edit control to new
+	push dword DelText
+	push dword 101
+	push dword [ebp+08]
+	call [SetDlgItemTextA]
+	jmp .window_finish
+	; cmp eax, 2
+	; jz .window_open_file
+	
+    .window_open_file:
+	;;Clear OpenFileName struct
+	;;RtlZeroMemory(&struct,sizeof(struct))
+	push dword 88
+	push ofn
+	call [RtlZeroMemory]
+	;;clear the filename
+	mov [filename],dword 0
+	;;OpenFileNameStruct(lStructSize,hwndOwner,hInstance,lpstrFilter)
+	;;Open file dialog
+	mov [ofn.lStructSize],dword 88
+	mov eax,[ebp+08]
+	mov [ofn.hwndOwner],eax
+	mov [ofn.hInstance],dword 0
+	mov [ofn.lpstrFilter],dword filterString
+	mov [ofn.lpstrCustomFilter],dword 0
+	mov [ofn.nMaxCustFilter],dword 0
+	mov [ofn.nFilterIndex],dword 0
+	mov [ofn.lpstrFile],dword filename
+	mov [ofn.nMaxFile],dword 260
+	mov [ofn.lpstrFileTitle],dword 0
+	mov [ofn.nMaxFileTitle],dword 0
+	mov [ofn.lpstrInitialDir],dword 0
+	mov [ofn.lpstrTitle],dword 0
+	mov [ofn.nFileOffset],dword 0
+	mov [ofn.nFileExtension],dword 0
+	mov [ofn.lpstrDefExt],dword DefExt
+	mov [ofn.lCustData],dword 0
+	mov [ofn.lpfnHook],dword 0
+	mov [ofn.lpTemplateName],dword 0
+	mov [ofn.lpReserved],dword 0
+	mov [ofn.dwReserved],dword 0
+	mov [ofn.FlagsEx],dword 0
+	mov eax,524288 | 4096 | 4 ;;OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+	mov [ofn.Flags],eax
+	push ofn
+	call [GetOpenFileNameA]
+	;;retrieves handle hEdit
+	push dword 101
+	push dword [ebp+08]
+	call [GetDlgItem]
+	mov dword [hEdit],eax
+	
+	;;CreateFile(lpFileName,dwDesiredAccess,dwShareMode,lpSecurityAttributes,dwCreationDisposition,dwFlagsAndAttributes,hTemplateFile)
 
-        ;; In order for use to call the DefWindowProc() function, we need to
-        ;; pass the arguments to it.
-        ;; It's arguments are the same as WindowProcedure()'s arguments.
-        ;; We push the arguments to the stack, in backwards order.
+	push dword 0
+	push dword 0
+	push dword 3 ;;OPEN_EXISTING
+	push dword 0
+	push dword 0x00000001 ;;FILE_SHARE_READ
+	push dword 0x80000000 ;;GENERIC_READ
+	push dword filename
+	call [CreateFileA]
+	mov dword [hFile],eax
+	
+	;;GetFileSize
+	push dword 0
+	push dword [hFile]
+	call [GetFileSize]
+	mov dword [dwFileSize],eax
+
+	add dword [dwFileSize],1
+
+	;;Allocate memory for filetext
+	push dword [dwFileSize]
+	push dword 0x0040 ;;GPTR  Initializes memory contents to zero and Allocates fixed memory. The return value is a pointer.
+	call [GlobalAlloc]
+	mov dword [pszFileText],eax
+	
+	;;ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped)
+	
+	push dword 0
+	push dword dwRead
+	push dword [dwFileSize]
+	push dword [pszFileText]
+	push dword [hFile]
+	call [ReadFile]
+	
+	
+	;Set WindowText
+	push dword [pszFileText]
+	push dword [hEdit]
+	call [SetWindowTextA]
+	push dword [pszFileText]
+	call [GlobalFree]
+	
+	push dword [hFile]
+	call [CloseHandle]
+	
+	jmp .window_finish
+	
+    .new_shit_failed:
+        ;;;Display a message box with the error message.
+	call [CommDlgExtendedError]
+	push dword 0
+	push dword 0
+	push dword err_msg_shit
+	push dword 0
+	call [MessageBoxA]
+	
+	jmp .window_finish
+	
+	;push dword [ebp+08]
+	;call [DoFileOpen]
+    .new_shit_ok:
+        ;Display a message box with the error message.
+	
+	push dword 0
+	push dword 0
+	push dword shit_ok
+	push dword 0
+	call [MessageBoxA]
+	
+	jmp .window_finish
+    .window_save_file:
+	;;Clear the openfilename struct
+	push dword 88 ;;struct size
+	push ofn
+	call [RtlZeroMemory]
+	mov [filename],dword 0
+	;;OpenFileNameStruct(lStructSize,hwndOwner,hInstance,lpstrFilter)
+	mov [ofn.lStructSize],dword 88
+	mov eax,[ebp+08]
+	mov [ofn.hwndOwner],eax
+	mov [ofn.hInstance],dword 0
+	mov [ofn.lpstrFilter],dword filterString
+	mov [ofn.lpstrCustomFilter],dword 0
+	mov [ofn.nMaxCustFilter],dword 0
+	mov [ofn.nFilterIndex],dword 0
+	mov [ofn.lpstrFile],dword filename
+	mov [ofn.nMaxFile],dword 260
+	mov [ofn.lpstrFileTitle],dword 0
+	mov [ofn.nMaxFileTitle],dword 0
+	mov [ofn.lpstrInitialDir],dword 0
+	mov [ofn.lpstrTitle],dword 0
+	mov [ofn.nFileOffset],dword 0
+	mov [ofn.nFileExtension],dword 0
+	mov [ofn.lpstrDefExt],dword DefExt
+	mov [ofn.lCustData],dword 0
+	mov [ofn.lpfnHook],dword 0
+	mov [ofn.lpTemplateName],dword 0
+	mov [ofn.lpReserved],dword 0
+	mov [ofn.dwReserved],dword 0
+	mov [ofn.FlagsEx],dword 0
+	mov eax,524288 |2048|4|2
+	mov [ofn.Flags],eax
+	push ofn
+	call [GetSaveFileNameA]
+	;cmp eax,0
+	;jz .new_shit_failed
+	push dword 101
+	push dword [ebp+08]
+	call [GetDlgItem]
+	mov dword [hEdit],eax
+	;;CreateFile(lpFileName,dwDesiredAccess,dwShareMode,lpSecurityAttributes,dwCreationDisposition,dwFlagsAndAttributes,hTemplateFile)
+	push dword 0
+	push dword 128 ;;FILE_ATTRIBUTE_NORMAL
+	push dword 2 ;;CREATE_ALWAYS
+	push dword 0
+	push dword 0
+	push dword 1073741824 ;;	GENERIC_WRITE
+
+	push dword filename
+	call [CreateFileA]
+	mov dword [hFile],eax
+	
+	;;Get Text length
+	;;
+	push dword [hEdit]
+	call [GetWindowTextLengthA]
+	mov dword [dwTextLength ],eax
+	cmp eax,0
+	jz .new_shit_ok
+	
+	add dword [dwTextLength],1
+	mov eax,dword [dwTextLength]
+	mov dword [dwBufferSize ],eax
+	
+	push dword [dwBufferSize]
+	push dword 0x0040
+	call [GlobalAlloc]
+	mov dword [pszText],eax
+
+	;;Get Text in edit control
+	push dword [dwBufferSize]
+	push dword [pszText]
+	push dword [hEdit]
+	call [GetWindowTextA ]
+	
+	;;Write to file with content pszText length dwTextLength 
+	push dword 0
+	push dword dwWritten
+	push dword [dwTextLength]
+	push dword [pszText]
+	push dword [hFile]
+	call [WriteFile]
+	mov dword [dWriteFile],eax
+
+	
+	push dword [pszText]
+	call [GlobalFree]
+	push dword [hFile]
+	
+	call [CloseHandle]
+	
+	jmp .window_finish
+	
+	
+     ;;if no uMsg we will jump in window_default
+    .window_default:
+	;;push the parameter of winproc
         push dword [ebp+20]
         push dword [ebp+16]
         push dword [ebp+12]
@@ -289,43 +639,82 @@ WindowProcedure:
         ;; And we call the DefWindowProc() function.
         call [DefWindowProcA]
 
-        ;; At this point, we need to return. The return value must
-        ;; be equal to whatever DefWindowProc() returned, so we
-        ;; can't change EAX.
-
-        ;; But we need to leave before we return.
-        leave
-
-        ;; Then, we can return. WindowProcedure() has 4 arguments, 4 bytes each,
-        ;; so we free 4 * 4 = 16 bytes from the stack, after returning.
+        mov esp,ebp
+	pop ebp
         ret 16
 
-        ;; Any code after the RET instruction will not be executed.
-        ;; But we'll put code there anyway, just for consistency.
         jmp .window_finish
-    ;; This is where the we want to jump to after doing everything we need to.
-    .window_finish:
 
-    ;; Unless we use the DefWindowProc() function, we need to return 0.
-    xor eax, eax                  ;; XOR EAX, EAX is a way to clear EAX.
-                                  ;; Same applies for any other register.
-    ;; Then we need to leave.
-    leave
-;; And, as said earlier, we free 16 bytes, after returning.
+    .window_finish:
+    xor eax, eax                  
+    mov esp,ebp
+    pop ebp
+    
 ret 16
 
-;; We're about to define variables for the data section.
+;;initialized value in .data
 section .data
-;; We define the class name for our window class.
-ClassName                           db "SimpleWindowClass", 0
-;; Then we define the application name, for our window's title.
-ApplicationName                     db "Simple Window Example", 0
+ClassName                           db "NotepPad", 0
+ClassNameEdit                       db "Edit",0
+ApplicationName                     db "NotePad", 0
+MenuNewFile				db"New",0
+MenuOpenFile				db"Open",0
+MenuSaveFile				db"Save",0
+MenuExitFile				db"Exit",0
+MenuFile				db"File",0
+FilterString			db"Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0"
+DefExt					db"txt",0
+DelText					db"",0
 
-;; The error message.
+shit_ok			db"Shit OK",0
 err_msg                             db "An error occurred while making the new window. ", 0
+err_msg_shit 			db"Shit happend",0
+filterString db "Text files (*.txt)",0,"*.txt",0
+		db "All files (*.*)",0,"*.*",0,0
 
-;; We're about to define variables for the bss section.
+ofn:
+    .lStructSize       dd 88
+    .hwndOwner         dd 0
+    .hInstance         dd 0
+    .lpstrFilter       dd filterString
+    .lpstrCustomFilter dd 0
+    .nMaxCustFilter    dd 0
+    .nFilterIndex      dd 1
+    .lpstrFile         dd filename
+    .nMaxFile          dd 255
+    .lpstrFileTitle    dd 0
+    .nMaxFileTitle     dd 0
+    .lpstrInitialDir   dd 0
+    .lpstrTitle        dd 0
+    .Flags             dd 0
+    .nFileOffset       dw 0
+    .nFileExtension    dw 0
+    .lpstrDefExt       dd DefExt
+    .lCustData         dd 0
+    .lpfnHook          dd 0
+    .lpTemplateName    dd 0
+    .lpReserved        dd 0
+    .dwReserved        dd 0
+    .FlagsEx           dd 0
+
+
+;;uninitialized value in .bss
 section .bss
-;; And we reserve a double-word for hInstance and a double-word for CommandLine.
+
 hInstance                           resd 1
 CommandLine                         resd 1
+hEdit                        resd 1
+hFont  			resd 1
+hMenu			resd 1
+hFileMenu			resd 1
+filename 			resd 1
+hFile				resd 1
+dwFileSize			resd 1
+pszFileText			resd 1
+dwRead			resd 1
+testHwnd			resd 1
+dwTextLength 		resd 1
+pszText 			resd 1
+dwBufferSize 		resd 1
+dwWritten			resd 1
+dWriteFile			resd 1
